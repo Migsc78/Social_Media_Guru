@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { getDomains } from './api/client.js';
 import DomainManager from './pages/DomainManager.jsx';
 import CalendarView from './pages/CalendarView.jsx';
 import PostEditor from './pages/PostEditor.jsx';
@@ -16,6 +17,22 @@ const NAV_ITEMS = [
 export default function App() {
     const [activeView, setActiveView] = useState('domains');
     const [selectedDomainId, setSelectedDomainId] = useState(null);
+    const [domains, setDomains] = useState([]);
+
+    useEffect(() => { loadDomains(); }, []);
+
+    async function loadDomains() {
+        try {
+            const data = await getDomains();
+            setDomains(data);
+            // Auto-select first domain if none selected and domains exist
+            if (!selectedDomainId && data.length > 0) {
+                setSelectedDomainId(data[0].id);
+            }
+        } catch (err) {
+            console.error('Failed to load domains in App:', err);
+        }
+    }
 
     function handleSelectDomain(domainId) {
         setSelectedDomainId(domainId);
@@ -25,7 +42,7 @@ export default function App() {
     function renderPage() {
         switch (activeView) {
             case 'domains':
-                return <DomainManager onSelectDomain={handleSelectDomain} />;
+                return <DomainManager onSelectDomain={handleSelectDomain} onDomainChange={loadDomains} />;
             case 'calendar':
                 return <CalendarView domainId={selectedDomainId} onNavigate={setActiveView} />;
             case 'posts':
@@ -35,9 +52,11 @@ export default function App() {
             case 'settings':
                 return <Settings />;
             default:
-                return <DomainManager onSelectDomain={handleSelectDomain} />;
+                return <DomainManager onSelectDomain={handleSelectDomain} onDomainChange={loadDomains} />;
         }
     }
+
+    const selectedDomain = domains.find(d => d.id === selectedDomainId);
 
     return (
         <div className="app-layout">
@@ -46,6 +65,30 @@ export default function App() {
                     <div className="sidebar-logo-icon">S</div>
                     <h1>SMMA</h1>
                 </div>
+
+                {/* Domain Selector */}
+                <div className="px-4 mb-6">
+                    <label className="text-xs text-muted uppercase tracking-wider font-semibold mb-2 block">Active Domain</label>
+                    <div className="relative">
+                        <select
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white appearance-none focus:outline-none focus:border-accent-primary"
+                            value={selectedDomainId || ''}
+                            onChange={(e) => setSelectedDomainId(e.target.value)}
+                            style={{ backgroundImage: 'none' }}
+                        >
+                            <option value="" disabled>Select Domain</option>
+                            {domains.map(d => (
+                                <option key={d.id} value={d.id} className="text-black">
+                                    {d.name}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-muted text-xs">
+                            ▼
+                        </div>
+                    </div>
+                </div>
+
                 <nav className="sidebar-nav">
                     {NAV_ITEMS.map(item => (
                         <button
@@ -58,14 +101,17 @@ export default function App() {
                         </button>
                     ))}
                 </nav>
-                {selectedDomainId && (
-                    <div style={{ marginTop: 'auto', padding: 'var(--space-3)', borderTop: '1px solid var(--bg-glass-border)' }}>
-                        <span className="text-xs text-muted">Active Domain</span>
-                        <div className="text-sm" style={{ marginTop: '4px', color: 'var(--accent-secondary)' }}>
-                            {selectedDomainId.slice(0, 8)}…
+
+                <div style={{ marginTop: 'auto', padding: '16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    {selectedDomain ? (
+                        <div className="text-xs text-muted">
+                            <div>Working on:</div>
+                            <div className="text-accent-primary font-medium truncate">{selectedDomain.name}</div>
                         </div>
-                    </div>
-                )}
+                    ) : (
+                        <div className="text-xs text-muted italic">No domain selected</div>
+                    )}
+                </div>
             </aside>
             <main className="main-content">
                 {renderPage()}
