@@ -1,13 +1,54 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getDomains, createDomain, deleteDomain, triggerCrawl, getPipelineStatus } from '../api/client.js';
 
-export default function DomainManager({ onSelectDomain, onDomainChange }) {
+export default function DomainManager({ activeDomainId, onSelectDomain, onActivateDomain, onDomainChange }) {
     const [domains, setDomains] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [pipelineStatus, setPipelineStatus] = useState({});
 
-    // ... (rest is same)
+    const [runningPipeline, setRunningPipeline] = useState(null); // domainId if pipeline running
+    const [showLog, setShowLog] = useState(null); // domainId to show log for
+    const pollingRef = useRef(null);
+
+    useEffect(() => { loadDomains(); return () => clearInterval(pollingRef.current); }, []);
+
+    async function loadDomains() {
+        try {
+            setLoading(true);
+            const data = await getDomains();
+            setDomains(data);
+            for (const d of data) {
+                try {
+                    const status = await getPipelineStatus(d.id);
+                    setPipelineStatus(prev => ({ ...prev, [d.id]: status }));
+                    if (status.pipelineStatus === 'running') {
+                        setRunningPipeline(d.id);
+                        setShowLog(d.id);
+                        startPolling(d.id);
+                    }
+                } catch { /* ignore */ }
+            }
+        } catch (err) {
+            console.error('Failed to load domains:', err);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function startPolling(domainId) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = setInterval(async () => {
+            try {
+                const status = await getPipelineStatus(domainId);
+                setPipelineStatus(prev => ({ ...prev, [domainId]: status }));
+                if (status.pipelineStatus !== 'running') {
+                    clearInterval(pollingRef.current);
+                    setRunningPipeline(null);
+                }
+            } catch { /* ignore */ }
+        }, 2000);
+    }
 
     async function handleAddDomain(formData) {
         try {
@@ -111,6 +152,16 @@ export default function DomainManager({ onSelectDomain, onDomainChange }) {
                                         <a href={domain.url} target="_blank" rel="noopener" className="text-sm">{domain.url}</a>
                                     </div>
                                     <div className="flex gap-2">
+                                        {activeDomainId === domain.id ? (
+                                            <span className="badge badge-published flex items-center gap-1" style={{ padding: '0 12px' }}>
+                                                ● Active
+                                            </span>
+                                        ) : (
+                                            <button className="btn btn-secondary btn-sm" onClick={() => onActivateDomain(domain.id)}>
+                                                Activate
+                                            </button>
+                                        )}
+
                                         <button className="btn btn-primary btn-sm" onClick={() => handleRunPipeline(domain.id)}
                                             disabled={isRunning}>
                                             {isRunning ? <><span className="spinner"></span> Running…</> : '🚀 Run Pipeline'}

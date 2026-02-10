@@ -67,8 +67,12 @@ function pipelineLog(domainId, level, message) {
     console.log(`[Pipeline] ${message}`);
 }
 
-function updatePipelineRun(domainId, step, status, error = null) {
+function updatePipelineRun(domainId, step, status, error = null, reset = false) {
     const run = pipelineRuns.get(domainId) || { status: 'idle', currentStep: null, error: null, steps: {}, logs: [] };
+    if (reset) {
+        run.steps = {};
+        run.logs = [];
+    }
     run.currentStep = step;
     run.status = status;
     run.error = error;
@@ -91,7 +95,7 @@ pipelineRoutes.post('/domains/:id/pipeline', async (req, res) => {
         }
 
         // Respond immediately, run pipeline in background
-        updatePipelineRun(domainId, 'crawl', 'running');
+        updatePipelineRun(domainId, 'crawl', 'running', null, true);
         res.json({ success: true, message: 'Pipeline started', domainId });
 
         // Run pipeline steps sequentially in the background

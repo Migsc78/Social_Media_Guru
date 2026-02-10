@@ -9,8 +9,8 @@ import PersonaView from './pages/PersonaView.jsx';
 const NAV_ITEMS = [
     { id: 'domains', label: 'Domains', icon: '🌐' },
     { id: 'personas', label: 'Personas', icon: '🎭' },
-    { id: 'calendar', label: 'Calendar', icon: '📅' },
     { id: 'posts', label: 'Post Editor', icon: '✏️' },
+    { id: 'calendar', label: 'Calendar', icon: '📅' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
@@ -36,13 +36,22 @@ export default function App() {
 
     function handleSelectDomain(domainId) {
         setSelectedDomainId(domainId);
-        setActiveView('calendar');
+        setActiveView('posts');
+    }
+
+    function handleActivateDomain(domainId) {
+        setSelectedDomainId(domainId);
     }
 
     function renderPage() {
         switch (activeView) {
             case 'domains':
-                return <DomainManager onSelectDomain={handleSelectDomain} onDomainChange={loadDomains} />;
+                return <DomainManager
+                    activeDomainId={selectedDomainId}
+                    onSelectDomain={handleSelectDomain}
+                    onActivateDomain={handleActivateDomain}
+                    onDomainChange={loadDomains}
+                />;
             case 'calendar':
                 return <CalendarView domainId={selectedDomainId} onNavigate={setActiveView} />;
             case 'posts':
@@ -64,29 +73,6 @@ export default function App() {
                 <div className="sidebar-logo">
                     <div className="sidebar-logo-icon">S</div>
                     <h1>SMMA</h1>
-                </div>
-
-                {/* Domain Selector */}
-                <div className="px-4 mb-6">
-                    <label className="text-xs text-muted uppercase tracking-wider font-semibold mb-2 block">Active Domain</label>
-                    <div className="relative">
-                        <select
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white appearance-none focus:outline-none focus:border-accent-primary"
-                            value={selectedDomainId || ''}
-                            onChange={(e) => setSelectedDomainId(e.target.value)}
-                            style={{ backgroundImage: 'none' }}
-                        >
-                            <option value="" disabled>Select Domain</option>
-                            {domains.map(d => (
-                                <option key={d.id} value={d.id} className="text-black">
-                                    {d.name}
-                                </option>
-                            ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-muted text-xs">
-                            ▼
-                        </div>
-                    </div>
                 </div>
 
                 <nav className="sidebar-nav">
