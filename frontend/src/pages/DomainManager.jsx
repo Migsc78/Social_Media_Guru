@@ -301,7 +301,7 @@ function ActivityLog({ logs, isRunning }) {
 function AddDomainModal({ onClose, onSubmit }) {
     const [form, setForm] = useState({
         url: '', name: '', primaryGoal: 'drive_traffic',
-        audienceDescription: '', brandVoiceTone: 'professional', brandVoiceFormality: 'medium'
+        brandVoiceTone: 'professional', brandVoiceFormality: 'medium'
     });
 
     function handleChange(e) {
@@ -354,11 +354,7 @@ function AddDomainModal({ onClose, onSubmit }) {
                             </select>
                         </div>
                     </div>
-                    <div className="form-group">
-                        <label className="form-label">Audience Description</label>
-                        <textarea className="form-textarea" name="audienceDescription" value={form.audienceDescription}
-                            onChange={handleChange} placeholder="Describe your target audience..." />
-                    </div>
+
                     <div className="flex gap-3" style={{ justifyContent: 'flex-end' }}>
                         <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
                         <button type="submit" className="btn btn-primary">Add Domain</button>
