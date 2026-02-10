@@ -1,0 +1,14 @@
+{
+    "name": "smma-agents",
+    "version": "1.0.0",
+    "description": "Social Media Marketing Agent - LLM Agent Layer",
+    "type": "module",
+    "scripts": {
+        "start": "node src/orchestrator.js",
+        "test": "node --test src/**/*.test.js"
+    },
+    "dependencies": {
+        "dotenv": "^16.4.0",
+        "openai": "^4.70.0"
+    }
+}
