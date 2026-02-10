@@ -58,6 +58,7 @@ export default function DomainManager({ onSelectDomain, onDomainChange }) {
             { name: 'Crawl', done: s.crawl?.done, detail: s.crawl?.pageCount ? `${s.crawl.pageCount} pages` : '', status: s.crawl?.status },
             { name: 'Site Analysis', done: s.siteAnalysis?.done, status: s.siteAnalysis?.status },
             { name: 'Competitors', done: s.competitorResearch?.done, status: s.competitorResearch?.status },
+            { name: 'Personas', done: s.personaGeneration?.done, status: s.personaGeneration?.status },
             { name: 'Strategy', done: s.contentStrategy?.done, status: s.contentStrategy?.status },
             { name: 'Calendar', done: s.campaignCalendar?.done, status: s.campaignCalendar?.status },
         ];

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDomain, getCrawledPages, getAgentData, storeAgentData, storePostDrafts } from '../db/database.js';
+import { getDomain, getCrawledPages, getAgentData, storeAgentData, storePostDrafts, getPersonas, storePersonas } from '../db/database.js';
 import { crawlDomain } from '../services/crawler.js';
 import OpenAI from 'openai';
 import { getAllSettings, getSetting } from '../db/database.js';
@@ -109,7 +109,7 @@ async function runPipeline(domainId, domain, opts) {
 
     try {
         // Step 1: Crawl
-        pipelineLog(domainId, 'info', '🔍 Step 1/5: Crawling website...');
+        pipelineLog(domainId, 'info', '🔍 Step 1/6: Crawling website...');
         updatePipelineRun(domainId, 'crawl', 'running');
         let pages = getCrawledPages(domainId);
         if (pages.length === 0) {
@@ -123,7 +123,7 @@ async function runPipeline(domainId, domain, opts) {
         const siteContext = buildSiteContext(domain, pages);
 
         // Step 2: Site Analysis
-        pipelineLog(domainId, 'info', '🧠 Step 2/5: Analyzing brand & site...');
+        pipelineLog(domainId, 'info', '🧠 Step 2/6: Analyzing brand & site...');
         updatePipelineRun(domainId, 'siteAnalysis', 'running');
         pipelineLog(domainId, 'info', 'Sending site content to LLM for brand analysis...');
         const profile = await callLLM(
@@ -138,7 +138,7 @@ async function runPipeline(domainId, domain, opts) {
         await new Promise(r => setTimeout(r, 3000));
 
         // Step 3: Competitor Research
-        pipelineLog(domainId, 'info', '🏆 Step 3/5: Researching competitors...');
+        pipelineLog(domainId, 'info', '🏆 Step 3/6: Researching competitors...');
         updatePipelineRun(domainId, 'competitorResearch', 'running');
         pipelineLog(domainId, 'info', 'Identifying competitors and market position...');
         const competitors = await callLLM(
@@ -153,13 +153,36 @@ async function runPipeline(domainId, domain, opts) {
 
         await new Promise(r => setTimeout(r, 3000));
 
-        // Step 4: Content Strategy
-        pipelineLog(domainId, 'info', '📋 Step 4/5: Building content strategy...');
+        // Step 4: Personas
+        pipelineLog(domainId, 'info', '👥 Step 4/6: Developing buyer personas...');
+        updatePipelineRun(domainId, 'personaGeneration', 'running');
+        let personas = getPersonas(domainId);
+        if (personas.length === 0) {
+            pipelineLog(domainId, 'info', 'Generating target audience personas based on research...');
+            const personasData = await callLLM(
+                'You are a marketing strategist. Create 3 detailed buyer personas for the brand. Return JSON with: personas (array of {name, age, occupation, painPoints, motivations, trustedSources}).',
+                `Brand: ${domain.name}\nProfile: ${JSON.stringify(profile)}\nCompetitors: ${JSON.stringify(competitors)}\n\nReturn valid JSON only.`,
+                { temperature: 0.7, maxTokens: 3000 }
+            );
+            if (personasData.personas) {
+                storePersonas(domainId, personasData.personas);
+                personas = getPersonas(domainId); // active reload
+            }
+        } else {
+            pipelineLog(domainId, 'info', `Using ${personas.length} existing personas.`);
+        }
+        updatePipelineRun(domainId, 'personaGeneration', 'done');
+        pipelineLog(domainId, 'success', `✅ Personas ready — ${personas.length} profiles active`);
+
+        await new Promise(r => setTimeout(r, 3000));
+
+        // Step 5: Content Strategy
+        pipelineLog(domainId, 'info', '📋 Step 5/6: Building content strategy...');
         updatePipelineRun(domainId, 'contentStrategy', 'running');
         pipelineLog(domainId, 'info', 'Creating content pillars, posting schedule, and tone guidelines...');
         const strategy = await callLLM(
             'You are a social media content strategist. Create a content strategy based on the brand profile, competitors, and target audience. Return JSON with: pillars (array of {name, description, percentage}), postingFrequency (object per platform), contentMix (array of {type, percentage}), toneGuidelines, hashtagStrategy, bestPostingTimes.',
-            `Brand: ${domain.name}\nGoal: ${domain.primary_goal}\nProfile: ${JSON.stringify(profile)}\nCompetitors: ${JSON.stringify(competitors)}\n\nReturn valid JSON only.`,
+            `Brand: ${domain.name}\nGoal: ${domain.primary_goal}\nProfile: ${JSON.stringify(profile)}\nCompetitors: ${JSON.stringify(competitors)}\nPersonas: ${JSON.stringify(personas)}\n\nReturn valid JSON only.`,
             { temperature: 0.7, maxTokens: 4000 }
         );
         storeAgentData('content_strategies', domainId, strategy);
@@ -169,13 +192,13 @@ async function runPipeline(domainId, domain, opts) {
 
         await new Promise(r => setTimeout(r, 3000));
 
-        // Step 5: Campaign Calendar (30-day)
-        pipelineLog(domainId, 'info', '📅 Step 5/5: Generating 30-day campaign calendar...');
+        // Step 6: Campaign Calendar (30-day)
+        pipelineLog(domainId, 'info', '📅 Step 6/6: Generating 30-day campaign calendar...');
         updatePipelineRun(domainId, 'campaignCalendar', 'running');
         pipelineLog(domainId, 'info', 'Creating post schedule with captions and hashtags...');
         const calendar = await callLLM(
-            `You are a social media campaign planner. Generate a 30-day content calendar starting from today (${new Date().toISOString().slice(0, 10)}). Return JSON with: posts (array of {date (YYYY-MM-DD), platform, contentType, topic, caption, hashtags (array), status: "draft"}).  Generate 2-3 posts per day across different platforms. Keep captions engaging and on-brand.`,
-            `Brand: ${domain.name} (${domain.url})\nStrategy: ${JSON.stringify(strategy)}\nProfile: ${JSON.stringify(profile)}\n\nReturn valid JSON only.`,
+            `You are a social media campaign planner. Generate a 30-day content calendar starting from today (${new Date().toISOString().slice(0, 10)}). Return JSON with: posts (array of {date (YYYY-MM-DD), platform, contentType, topic, caption, hashtags (array), status: "draft"}). Generate 2-3 posts per day across different platforms. Keep captions engaging and on-brand. Customize content for the target personas.`,
+            `Brand: ${domain.name} (${domain.url})\nStrategy: ${JSON.stringify(strategy)}\nProfile: ${JSON.stringify(profile)}\nPersonas: ${JSON.stringify(personas)}\n\nReturn valid JSON only.`,
             { temperature: 0.8, maxTokens: 8000 }
         );
         storeAgentData('campaign_calendars', domainId, calendar);
@@ -233,6 +256,7 @@ pipelineRoutes.get('/domains/:id/status', (req, res) => {
         const positioning = getAgentData('positioning_summaries', req.params.id);
         const strategy = getAgentData('content_strategies', req.params.id);
         const calendar = getAgentData('campaign_calendars', req.params.id);
+        const personas = getPersonas(req.params.id);
 
         const run = pipelineRuns.get(req.params.id) || {};
 
@@ -247,6 +271,7 @@ pipelineRoutes.get('/domains/:id/status', (req, res) => {
                 crawl: { done: pages.length > 0, pageCount: pages.length, status: run.steps?.crawl || (pages.length > 0 ? 'done' : 'pending') },
                 siteAnalysis: { done: !!profile, status: run.steps?.siteAnalysis || (profile ? 'done' : 'pending') },
                 competitorResearch: { done: !!competitors, status: run.steps?.competitorResearch || (competitors ? 'done' : 'pending') },
+                personaGeneration: { done: personas && personas.length > 0, status: run.steps?.personaGeneration || (personas && personas.length > 0 ? 'done' : 'pending') },
                 contentStrategy: { done: !!strategy, status: run.steps?.contentStrategy || (strategy ? 'done' : 'pending') },
                 campaignCalendar: { done: !!calendar, status: run.steps?.campaignCalendar || (calendar ? 'done' : 'pending') },
             }
